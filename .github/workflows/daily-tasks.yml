@@ -1,5 +1,5 @@
-# 每日自动执行领克App签到 + 分享，并通过 Bark 推送结果。
-# 敏感字段（账号 token/deviceId、应用签名密钥、Bark key）均通过仓库 Secrets
+# 每日自动执行领克App签到 + 分享，并通过企业微信应用推送结果。
+# 敏感字段（账号 token/deviceId、应用签名密钥、企业微信应用 Secret）均通过仓库 Secrets
 # 提供，代码中不含任何默认值，未配置会直接报错退出，获取方式见 readme.md。
 # 说明：
 #   - 登录环节存在滑块验证码，无法在 CI 中完全自动化，本工作流依赖
@@ -39,15 +39,16 @@ jobs:
         # refreshToken 自动续期获取 token，详见 lynkco_login.load_token()
         LYNKCO_REFRESH_TOKEN: ${{ secrets.LYNKCO_REFRESH_TOKEN }}
         LYNKCO_DEVICE_ID: ${{ secrets.LYNKCO_DEVICE_ID }}
-        # Bark 推送 key，详见 lynkco_notify.py
-        LYNKCO_BARK_KEY: ${{ secrets.LYNKCO_BARK_KEY }}
+        # 企业微信应用消息配置，详见 lynkco_notify.py
+        LYNKCO_WECOM_CORP_ID: ${{ secrets.LYNKCO_WECOM_CORP_ID }}
+        LYNKCO_WECOM_AGENT_ID: ${{ secrets.LYNKCO_WECOM_AGENT_ID }}
+        LYNKCO_WECOM_SECRET: ${{ secrets.LYNKCO_WECOM_SECRET }}
+        LYNKCO_WECOM_TO_USER: ${{ secrets.LYNKCO_WECOM_TO_USER }}
         # App 共用签名密钥集合（JSON 字符串，详见 lynkco_common.py），必须配置，
         # 否则脚本会在计算签名时报错退出。字段名与 env.json 的 secrets 段一致：
         # {"nativeAppKey":"","nativeAppSecret":"","nativeAppCode":"",
         #  "loginAppCode":""}
         LYNKCO_APP_SECRETS: ${{ secrets.LYNKCO_APP_SECRETS }}
-        # Bark 推送图标 URL（可选项，不配则 Bark 使用默认图标）
-        LYNKCO_BARK_ICON: ${{ secrets.LYNKCO_BARK_ICON }}
         LYNKCO_TIMEOUT: ${{ vars.LYNKCO_TIMEOUT || '30' }}
         LYNKCO_RETRIES: ${{ vars.LYNKCO_RETRIES || '2' }}
       run: |

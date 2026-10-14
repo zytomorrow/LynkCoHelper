@@ -170,7 +170,7 @@ python3 lynkco_comment.py --publish --max-comments 1 # 真实发布，最多尝�
      {"nativeAppKey":"...","nativeAppSecret":"...","nativeAppCode":"...","loginAppCode":"..."}
      ```
      （如果不想合并配置，也可改用 4 个独立的 `LYNKCO_NATIVE_APP_KEY` 等 Secret，同时修改 workflow 中的 `env` 字段）。
-   - 可选：`LYNKCO_BARK_KEY`（daily-tasks 的 Bark 推送）。
+  - 推送可选：`LYNKCO_WECOM_CORP_ID`、`LYNKCO_WECOM_AGENT_ID`、`LYNKCO_WECOM_SECRET`、`LYNKCO_WECOM_TO_USER`。四项均配置后，daily-tasks 会向指定成员发送企业微信文本消息；接收成员可填写成员 UserID 或 `@all`。未配置时跳过推送。
 3. 可在 `Actions` 页面手动触发一次 workflow 验证。
 4. 仅配置 `LYNKCO_TOKEN` 时，token 失效后需要手动更新；配置 `refreshToken` 后可自动续期，仅需在其过期（约 30 天）时才需人工干预。
 

@@ -3,12 +3,12 @@
 领克App 每日任务编排入口（签到 + 分享 + 积分查询 + 结果通知）。
 
 - run_daily_tasks()：编排"查积分 -> 签到 -> 分享 -> 再查积分对比"，返回结构化结果字典。
-- run_and_notify()：加载 token -> 执行每日任务 -> 组装 Markdown -> 推送到 Bark。
+- run_and_notify()：加载 token -> 执行每日任务 -> 组装 Markdown -> 推送到企业微信。
 
 签到/分享成功后 myEnergy 接口的积分有几秒异步延迟，故查询"之后积分"前会先 sleep。
 
 用法:
-    python3 lynkco_daily_tasks.py    # 执行每日任务（签到+分享）并推送结果
+    python3 lynkco_daily_tasks.py    # 执行每日任务（签到+分享）并推送企业微信通知
 """
 import json
 import os
@@ -17,7 +17,7 @@ import time
 
 from lynkco_common import env_value, mask_sensitive
 from lynkco_login import load_token
-from lynkco_notify import build_markdown_report, send_bark_notification
+from lynkco_notify import build_markdown_report, send_wecom_notification
 from lynkco_sign import LynkCoSignClient
 from lynkco_share import LynkCoShareClient
 
@@ -82,12 +82,12 @@ def run_daily_tasks(token: str, do_share: bool = True) -> dict:
 def run_and_notify() -> dict:
     """
     完整入口：加载 token -> 执行每日任务(run_daily_tasks) -> 组装 Markdown
-    -> 推送到 Bark（lynkco_notify 模块）。
+    -> 推送到企业微信应用（lynkco_notify 模块）。
 
     每日任务固定包含"签到+分享"两项（分享接口每日有加分次数上限，重复
     调用不会重复加分，详见 docs/分享任务接口说明.md）。
 
-    返回值同 run_daily_tasks()，并额外附带 "notify_result" 字段（Bark
+    返回值同 run_daily_tasks()，并额外附带 "notify_result" 字段（企业微信
     推送接口的响应，或 {"skipped": True}）。
     """
     token = load_token()
@@ -100,19 +100,17 @@ def run_and_notify() -> dict:
     print("\n=== 推送内容预览 ===")
     print(markdown_body)
 
-    icon = env_value("LYNKCO_BARK_ICON") or None
     try:
-        notify_result = send_bark_notification(
+        notify_result = send_wecom_notification(
             title="领克App · 每日任务",
             markdown_body=markdown_body,
-            icon=icon,
         )
     except Exception as e:
         # 推送失败（网络问题/代理超时等）不应影响签到/分享本身已经成功执行
         # 这一事实，只记录警告，不让整个流程以异常状态退出。
-        print(f"[警告] Bark 推送失败（不影响签到/分享结果）: {e}")
+        print(f"[警告] 企业微信推送失败（不影响签到/分享结果）: {e}")
         notify_result = {"skipped": True, "error": str(e)}
-    print("\n=== Bark 推送结果 ===")
+    print("\n=== 企业微信推送结果 ===")
     print(json.dumps(mask_sensitive(notify_result), ensure_ascii=False, indent=2))
 
     result["notify_result"] = notify_result

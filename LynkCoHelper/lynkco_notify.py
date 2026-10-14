@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Bark 推送通知工具模块，提供两个通用能力（不含任何业务逻辑，供
-lynkco_daily_tasks.py 按需调用）：
-    - build_markdown_report(result)：把任务结果字典组装成 Bark Markdown 文案；
-    - send_bark_notification(...)：把一段 Markdown 文案推送到 Bark。
+通知工具模块，提供每日任务 Markdown 文案及 Bark / 企业微信应用消息推送。
 
-配置方式：环境变量 LYNKCO_BARK_KEY，或 env.json 的 notify.barkKey 字段
-（Bark App「我的」页面可查看），未配置时跳过推送并打印提示，不抛异常。
+Bark 使用环境变量 LYNKCO_BARK_KEY 或 env.json 的 notify.barkKey。
+企业微信应用消息使用 LYNKCO_WECOM_CORP_ID、LYNKCO_WECOM_AGENT_ID、
+LYNKCO_WECOM_SECRET、LYNKCO_WECOM_TO_USER，或对应的 env.json notify 字段。
+未配置完整时跳过推送并打印提示。
 """
+import re
+
 import requests
 
 from lynkco_common import env_value, load_env_data
@@ -15,6 +16,9 @@ from lynkco_common import env_value, load_env_data
 BARK_DEFAULT_BASE = "https://api.day.app"
 BARK_CONNECT_TIMEOUT = 5
 BARK_READ_TIMEOUT = 15
+WECOM_API_BASE = "https://qyapi.weixin.qq.com/cgi-bin"
+WECOM_CONNECT_TIMEOUT = 5
+WECOM_READ_TIMEOUT = 15
 
 
 def _extract_point(energy_resp: dict) -> str:
@@ -119,3 +123,50 @@ def send_bark_notification(title: str, markdown_body: str, group: str = "LynkCo�
     )
     resp.raise_for_status()
     return resp.json()
+
+
+def send_wecom_notification(title: str, markdown_body: str, corp_id: str = None,
+                            agent_id: str = None, corp_secret: str = None,
+                            to_user: str = None) -> dict:
+    """向企业微信自建应用发送纯文本消息；to_user 可为成员 ID 或 @all。"""
+    notify_config = load_env_data().get("notify") or {}
+    corp_id = corp_id or env_value("LYNKCO_WECOM_CORP_ID") or str(notify_config.get("wecomCorpId") or "").strip()
+    agent_id = agent_id or env_value("LYNKCO_WECOM_AGENT_ID") or str(notify_config.get("wecomAgentId") or "").strip()
+    corp_secret = corp_secret or env_value("LYNKCO_WECOM_SECRET") or str(notify_config.get("wecomSecret") or "").strip()
+    to_user = to_user or env_value("LYNKCO_WECOM_TO_USER") or str(notify_config.get("wecomToUser") or "").strip()
+
+    if not all((corp_id, agent_id, corp_secret, to_user)):
+        print("[提示] 企业微信推送未配置完整，需设置 CorpID、AgentID、Secret 和接收成员，跳过推送。")
+        return {"skipped": True}
+
+    token_resp = requests.get(
+        f"{WECOM_API_BASE}/gettoken",
+        params={"corpid": corp_id, "corpsecret": corp_secret},
+        timeout=(WECOM_CONNECT_TIMEOUT, WECOM_READ_TIMEOUT),
+    )
+    token_resp.raise_for_status()
+    token_data = token_resp.json()
+    if token_data.get("errcode") != 0:
+        raise RuntimeError(f"企业微信获取 access_token 失败: {token_data.get('errmsg', '未知错误')}")
+
+    plain_body = re.sub(r"(?m)^#{1,6}\s*", "", markdown_body)
+    plain_body = re.sub(r"(?m)^\s*[-*]\s+", "· ", plain_body)
+    plain_body = re.sub(r"\*\*(.*?)\*\*", r"\1", plain_body)
+    plain_body = re.sub(r"`([^`]*)`", r"\1", plain_body)
+    content = f"{title}\n\n{plain_body}"
+    message_resp = requests.post(
+        f"{WECOM_API_BASE}/message/send",
+        params={"access_token": token_data["access_token"]},
+        json={
+            "touser": to_user,
+            "msgtype": "text",
+            "agentid": int(agent_id),
+            "text": {"content": content},
+        },
+        timeout=(WECOM_CONNECT_TIMEOUT, WECOM_READ_TIMEOUT),
+    )
+    message_resp.raise_for_status()
+    result = message_resp.json()
+    if result.get("errcode") != 0:
+        raise RuntimeError(f"企业微信消息发送失败: {result.get('errmsg', '未知错误')}")
+    return result
